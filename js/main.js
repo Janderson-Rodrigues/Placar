@@ -1,214 +1,258 @@
-// Função para adicionar um ponto ao jogador 1
-const scoreManager = (function() {
-  // Variáveis do jogo
-  let p1Points = 0;
-  let p2Points = 0;
-  let p1Sets = 0;
-  let p2Sets = 0;
-  let gameHistory = [];
-  let gameFinished = false;
-  const pointsToWinSet = 11;
-  const minDifference = 2;
+// Descrição: Este código JavaScript implementa um sistema de contagem de pontos e gerenciamento de jogo para um torneio de tênis de mesa. Ele inclui funcionalidades como contagem de pontos, gerenciamento de sets, timeouts, ações disciplinares (cartões amarelos e vermelhos), e um histórico de ações do jogo. O código também lida com a exibição dos dados na interface do usuário e a lógica para determinar o vencedor do jogo.
+// Variáveis do jogo
+let p1Points = 0;
+let p2Points = 0;
+let p1Sets = 0;
+let p2Sets = 0;
+let gameHistory = [];
+let gameFinished = false;
+let timeouts = { p1: 1, p2: 1 };
+let timeoutTimers = { p1: null, p2: null };
+let disciplinaryActions = {
+  p1: { yellows: 0, reds: 0 },
+  p2: { yellows: 0, reds: 0 }
+};
 
-  // Elementos DOM
-  const p1Card = document.getElementById('p1-card');
-  const p2Card = document.getElementById('p2-card');
-  const pointHistoryElement = document.getElementById('point-history');
-  const pointButtons = document.querySelectorAll('.player-card button');
+// Funções principais
+function updateDisplay() {
+  document.getElementById("p1-points").textContent = p1Points;
+  document.getElementById("p2-points").textContent = p2Points;
+  document.getElementById("p1-sets").textContent = p1Sets;
+  document.getElementById("p2-sets").textContent = p2Sets;
+  document.getElementById("timeouts-p1").textContent = timeouts.p1;
+  document.getElementById("timeouts-p2").textContent = timeouts.p2;
+  document.getElementById("fouls-p1").textContent = disciplinaryActions.p1.yellows + disciplinaryActions.p1.reds;
+  document.getElementById("fouls-p2").textContent = disciplinaryActions.p2.yellows + disciplinaryActions.p2.reds;
+  
+  checkMatchWinner();
+}
 
-  // Inicializa o placar
-  function init() {
-    document.getElementById('player1-name').addEventListener('input', updateNames);
-    document.getElementById('player2-name').addEventListener('input', updateNames);
-    updateDisplay();
-    updateNames();
-    addToHistory("Jogo iniciado. Boa partida!");
-  }
+function updateNames() {
+  const name1 = document.getElementById("player1-name").value || "Jogador 1";
+  const name2 = document.getElementById("player2-name").value || "Jogador 2";
+  document.getElementById("p1-name-display").textContent = name1;
+  document.getElementById("p2-name-display").textContent = name2;
+}
 
-  // Atualiza a exibição na tela
-  function updateDisplay() {
-    document.getElementById("p1-points").textContent = p1Points;
-    document.getElementById("p2-points").textContent = p2Points;
-    document.getElementById("p1-sets").textContent = p1Sets;
-    document.getElementById("p2-sets").textContent = p2Sets;
-    
-    checkMatchWinner();
-  }
+function addPoint(player) {
+  if (gameFinished) return;
+  
+  const p1Name = document.getElementById("p1-name-display").textContent;
+  const p2Name = document.getElementById("p2-name-display").textContent;
+  
+  if (player === 1) p1Points++;
+  else p2Points++;
+  
+  gameHistory.push({ action: 'point', player, p1Points, p2Points });
+  addToHistory(`${new Date().toLocaleTimeString()} - Jogador ${player} marcou (${p1Points} × ${p2Points})`);
+  checkSetWinner();
+  updateDisplay();
+}
 
-  // Atualiza os nomes dos jogadores
-  function updateNames() {
-    const name1 = document.getElementById("player1-name").value || "Jogador 1";
-    const name2 = document.getElementById("player2-name").value || "Jogador 2";
-    document.getElementById("p1-name-display").textContent = name1;
-    document.getElementById("p2-name-display").textContent = name2;
-  }
-
-  // Adiciona ponto para um jogador
-  function addPoint(player) {
-    if (gameFinished) return;
+function checkSetWinner() {
+  if ((p1Points >= 11 && p1Points - p2Points >= 2) || 
+      (p2Points >= 11 && p2Points - p1Points >= 2)) {
+    const winner = p1Points > p2Points ? 1 : 2;
+    if (winner === 1) p1Sets++; else p2Sets++;
     
     const p1Name = document.getElementById("p1-name-display").textContent;
     const p2Name = document.getElementById("p2-name-display").textContent;
-    const pointTime = new Date().toLocaleTimeString();
+    const winnerName = winner === 1 ? p1Name : p2Name;
     
-    if (player === 1) {
-      p1Points++;
-      gameHistory.push({
-        player: 1,
-        point: p1Points,
-        opponentPoint: p2Points,
-        time: pointTime,
-        set: p1Sets + p2Sets + 1
-      });
-      addToHistory(`${pointTime} - ${p1Name} marcou ponto (${p1Points} × ${p2Points})`);
-    } else {
-      p2Points++;
-      gameHistory.push({
-        player: 2,
-        point: p2Points,
-        opponentPoint: p1Points,
-        time: pointTime,
-        set: p1Sets + p2Sets + 1
-      });
-      addToHistory(`${pointTime} - ${p2Name} marcou ponto (${p1Points} × ${p2Points})`);
-    }
+    addToHistory(`🏆 ${winnerName} venceu o set! (${p1Points} × ${p2Points})`);
+    p1Points = p2Points = 0;
+  }
+}
+
+function checkMatchWinner() {
+  const maxSets = parseInt(document.getElementById('max-sets').value);
+  const setsToWin = Math.ceil(maxSets / 2);
+  
+  if (p1Sets >= setsToWin || p2Sets >= setsToWin) {
+    gameFinished = true;
+    const winner = p1Sets > p2Sets ? 1 : 2;
+    document.getElementById(`p${winner}-card`).classList.add("winner-glow");
     
-    checkSetWinner();
-    updateDisplay();
-  }
-
-  // Verifica se há vencedor do set
-  function checkSetWinner() {
-    if (p1Points >= pointsToWinSet || p2Points >= pointsToWinSet) {
-      const pointsDiff = Math.abs(p1Points - p2Points);
-      
-      if (pointsDiff >= minDifference) {
-        const p1Name = document.getElementById("p1-name-display").textContent;
-        const p2Name = document.getElementById("p2-name-display").textContent;
-        
-        if (p1Points > p2Points) {
-          p1Sets++;
-          addToHistory(`🏆 ${p1Name} venceu o set ${p1Sets + p2Sets} por ${p1Points} a ${p2Points}!`);
-        } else {
-          p2Sets++;
-          addToHistory(`🏆 ${p2Name} venceu o set ${p1Sets + p2Sets} por ${p2Points} a ${p1Points}!`);
-        }
-        
-        p1Points = 0;
-        p2Points = 0;
-      }
-    }
-  }
-
-  // Verifica se há vencedor da partida
-  function checkMatchWinner() {
-    const maxSets = parseInt(document.getElementById('max-sets').value);
-    const setsToWin = Math.ceil(maxSets / 2);
     const p1Name = document.getElementById("p1-name-display").textContent;
     const p2Name = document.getElementById("p2-name-display").textContent;
+    const winnerName = winner === 1 ? p1Name : p2Name;
     
-    if (p1Sets >= setsToWin) {
-      gameFinished = true;
-      p1Card.classList.add('winner-glow');
-      addToHistory(`🎉🎉 ${p1Name} VENCEU A PARTIDA! 🎉🎉 (${p1Sets} sets a ${p2Sets})`);
-      disablePointButtons();
-    } else if (p2Sets >= setsToWin) {
-      gameFinished = true;
-      p2Card.classList.add('winner-glow');
-      addToHistory(`🎉🎉 ${p2Name} VENCEU A PARTIDA! 🎉🎉 (${p2Sets} sets a ${p1Sets})`);
-      disablePointButtons();
-    }
+    addToHistory(`🎉 ${winnerName} VENCEU A PARTIDA!`);
+  }
+}
+
+// Timeouts
+function requestTimeout(player) {
+  const playerKey = `p${player}`;
+  
+  if (timeouts[playerKey] <= 0) {
+    addToHistory(`Jogador ${player} não tem mais timeouts!`);
+    return;
   }
 
-  // Desativa os botões de ponto
-  function disablePointButtons() {
-    pointButtons.forEach(btn => {
-      btn.classList.add('opacity-50', 'cursor-not-allowed');
-      btn.disabled = true;
-    });
-  }
+  timeouts[playerKey]--;
+  updateDisplay();
+  
+  // Desativa botões
+  document.getElementById(`timeout-p${player}`).disabled = true;
+  document.querySelectorAll('.player-card button').forEach(btn => btn.disabled = true);
+  
+  // Mostra timer
+  const timerElement = document.getElementById(`timer-p${player}`);
+  timerElement.classList.remove('hidden');
+  
+  let seconds = 60;
+  timerElement.querySelector('span').textContent = "1:00";
+  
+  timeoutTimers[playerKey] = setInterval(() => {
+    seconds--;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    timerElement.querySelector('span').textContent = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    
+    if (seconds <= 0) {
+      clearInterval(timeoutTimers[playerKey]);
+      endTimeout(player);
+    }
+  }, 1000);
+  
+  addToHistory(`⏱️ Jogador ${player} solicitou timeout`);
+}
 
-  // Ativa os botões de ponto
-  function enablePointButtons() {
-    pointButtons.forEach(btn => {
-      btn.classList.remove('opacity-50', 'cursor-not-allowed');
-      btn.disabled = false;
-    });
-  }
+function endTimeout(player) {
+  document.getElementById(`timer-p${player}`).classList.add('hidden');
+  document.querySelectorAll('.player-card button').forEach(btn => btn.disabled = false);
+  addToHistory(`✅ Timeout do Jogador ${player} encerrado`);
+}
 
-  // Adiciona mensagem ao histórico
-  function addToHistory(message) {
-    const historyElement = document.createElement('div');
-    historyElement.textContent = message;
-    historyElement.className = 'py-1 border-b border-gray-200 last:border-0';
-    pointHistoryElement.prepend(historyElement);
+// Sistema Disciplinar
+function addCard(player, cardType) {
+  if (gameFinished) return;
+  
+  const playerKey = `p${player}`;
+  const opponent = player === 1 ? 2 : 1;
+  
+  // Registrar cartão
+  if (cardType === 'yellow') {
+    disciplinaryActions[playerKey].yellows++;
+    addToHistory(`🟨 Cartão amarelo para Jogador ${player} (Infração ${disciplinaryActions[playerKey].yellows})`);
     
-    if (pointHistoryElement.children.length > 20) {
-      pointHistoryElement.removeChild(pointHistoryElement.lastChild);
+    // 2 amarelos = 1 vermelho
+    if (disciplinaryActions[playerKey].yellows >= 2) {
+      addRedCard(player);
     }
+  } 
+  else if (cardType === 'red') {
+    addRedCard(player);
   }
+  
+  updateCardsDisplay();
+}
 
-  // Desfaz o último ponto
-  function undoLastPoint() {
-    if (gameHistory.length === 0) return;
-    
-    const lastPoint = gameHistory.pop();
-    
-    if (lastPoint.player === 1) {
-      p1Points = lastPoint.point - 1;
-    } else {
-      p2Points = lastPoint.point - 1;
-    }
-    
-    const currentSet = p1Sets + p2Sets + 1;
-    if (currentSet < lastPoint.set) {
-      if (lastPoint.player === 1) {
-        p1Sets--;
-      } else {
-        p2Sets--;
-      }
-    }
-    
-    gameFinished = false;
-    p1Card.classList.remove('winner-glow');
-    p2Card.classList.remove('winner-glow');
-    enablePointButtons();
-    
-    pointHistoryElement.removeChild(pointHistoryElement.firstChild);
-    if (pointHistoryElement.children.length === 0) {
-      addToHistory("Último ponto desfeito. Jogo em andamento.");
-    }
-    
+function addRedCard(player) {
+  const playerKey = `p${player}`;
+  const opponent = player === 1 ? 2 : 1;
+  
+  disciplinaryActions[playerKey].reds++;
+  disciplinaryActions[playerKey].yellows = 0; // Reseta amarelos
+  
+  addToHistory(`🟥 Cartão vermelho para Jogador ${player}`);
+  
+  // Adiciona ponto de penalidade para o adversário
+  if (player === 1) p2Points++; else p1Points++;
+  addToHistory(`➕ Ponto de penalidade para Jogador ${opponent}`);
+  
+  // Verificar por desqualificação (2 vermelhos)
+  if (disciplinaryActions[playerKey].reds >= 2) {
+    disqualifyPlayer(player);
+  } else {
     updateDisplay();
   }
+}
 
-  // Reinicia o jogo
-  function resetGame() {
-    p1Points = 0;
-    p2Points = 0;
-    p1Sets = 0;
-    p2Sets = 0;
-    gameHistory = [];
-    gameFinished = false;
-    
-    p1Card.classList.remove('winner-glow');
-    p2Card.classList.remove('winner-glow');
-    enablePointButtons();
-    
-    updateDisplay();
-    pointHistoryElement.innerHTML = '';
-    addToHistory("Jogo reiniciado. Boa partida!");
+function disqualifyPlayer(player) {
+  const opponent = player === 1 ? 2 : 1;
+  gameFinished = true;
+  
+  // Adversário vence por WO
+  if (opponent === 1) {
+    p1Sets = Math.ceil(document.getElementById('max-sets').value / 2);
+  } else {
+    p2Sets = Math.ceil(document.getElementById('max-sets').value / 2);
   }
+  
+  // Marca jogador como desqualificado
+  document.getElementById(`p${player}-card`).classList.add('disqualified');
+  document.getElementById(`p${opponent}-card`).classList.add('winner-glow');
+  
+  addToHistory(`❌ Jogador ${player} desqualificado!`);
+  addToHistory(`🏆 Jogador ${opponent} vence por desqualificação`);
+  
+  // Atualizar display e desativar controles
+  updateDisplay();
+  document.querySelectorAll('button').forEach(btn => btn.disabled = true);
+}
 
-  // Expõe métodos públicos
-  return {
-    init,
-    addPoint,
-    undoLastPoint,
-    resetGame,
-    updateNames
-  };
-})();
+function updateCardsDisplay() {
+  document.getElementById('cards-p1').innerHTML = 
+    '🟨'.repeat(disciplinaryActions.p1.yellows) + 
+    '🟥'.repeat(disciplinaryActions.p1.reds);
+    
+  document.getElementById('cards-p2').innerHTML = 
+    '🟨'.repeat(disciplinaryActions.p2.yellows) + 
+    '🟥'.repeat(disciplinaryActions.p2.reds);
+    
+  updateDisplay();
+}
 
-// Inicializa o placar quando a página carrega
-document.addEventListener('DOMContentLoaded', scoreManager.init);
+// Outras funções
+function addToHistory(message) {
+  const entry = document.createElement('div');
+  entry.className = 'py-1 border-b border-gray-200';
+  entry.textContent = message;
+  document.getElementById('point-history').prepend(entry);
+}
+
+function undoLastPoint() {
+  if (gameHistory.length > 0) {
+    const last = gameHistory.pop();
+    if (last.action === 'point') {
+      if (last.player === 1) p1Points--; else p2Points--;
+      updateDisplay();
+      addToHistory(`↩️ Ponto desfeito para Jogador ${last.player}`);
+    }
+  }
+}
+
+function resetGame() {
+  p1Points = p2Points = 0;
+  p1Sets = p2Sets = 0;
+  gameFinished = false;
+  timeouts = { p1: 1, p2: 1 };
+  disciplinaryActions = { p1: { yellows: 0, reds: 0 }, p2: { yellows: 0, reds: 0 } };
+  gameHistory = [];
+  
+  clearTimeout(timeoutTimers.p1);
+  clearTimeout(timeoutTimers.p2);
+  
+  // Resetar estilos
+  document.getElementById('p1-card').classList.remove("winner-glow", "disqualified");
+  document.getElementById('p2-card').classList.remove("winner-glow", "disqualified");
+  document.getElementById('timer-p1').classList.add('hidden');
+  document.getElementById('timer-p2').classList.add('hidden');
+  
+  // Reativar botões
+  document.querySelectorAll('button').forEach(btn => btn.disabled = false);
+  
+  updateDisplay();
+  updateCardsDisplay();
+  document.getElementById('point-history').innerHTML = '';
+  addToHistory('🔄 Jogo reiniciado');
+}
+
+// Inicialização
+document.addEventListener('DOMContentLoaded', () => {
+  updateDisplay();
+  updateNames();
+  addToHistory('⏳ Jogo iniciado');
+});
